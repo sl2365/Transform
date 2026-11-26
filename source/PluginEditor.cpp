@@ -5965,9 +5965,9 @@ void TransformAudioProcessorEditor::paint(juce::Graphics& g)
         }
         else if (selectedModule == static_cast<int>(transform::modules::Id::freeze))
         {
-            drawControlPanel(18.0f, 98.0f, 106.0f, 134.0f);
-            drawControlPanel(130.0f, 98.0f, 143.0f, 134.0f);
-            drawControlPanel(279.0f, 98.0f, 557.0f, 134.0f);
+            drawControlPanel(18.0f, 98.0f, 116.0f, 134.0f);
+            drawControlPanel(140.0f, 98.0f, 116.0f, 134.0f);
+            drawControlPanel(262.0f, 98.0f, 574.0f, 134.0f);
         }
         else
             drawControlPanel(18.0f, 98.0f, 818.0f, 134.0f);
@@ -6111,23 +6111,23 @@ void TransformAudioProcessorEditor::resized()
     constexpr std::array<int, 12> freezeOrder {{ 0, 8, 1, 2, 3, 4, 5, 6, 9, 10, 11, 7 }};
     for (std::size_t i = 0; i < freezeOrder.size(); ++i)
     {
-        const int x = 287 + static_cast<int>(i % 6) * 90;
-        const int y = i < 6 ? 100 : 166;
+        const int x = 279 + static_cast<int>(i % 6) * 90;
+        const int y = i < 6 ? 103 : 169;
         auto* dial = freezeDials[static_cast<std::size_t>(freezeOrder[i])];
         dial->label.setBounds(x, y, 90, 14);
         dial->slider.setBounds(x, y + 14, 90, 44);
     }
     // Both FREEZE selector panels use matching rows and a common LED/text
     // column within each panel. MODE keeps its position when VOICES is hidden.
-    freezeAlgorithmLabel.setBounds(22, 105, 98, 13);
-    centreRadioGroup(freezeAlgorithmButtons, 18, 106, 120, 15, 15);
-    freezeDirectionLabel.setBounds(22, 170, 98, 13);
+    freezeAlgorithmLabel.setBounds(22, 105, 108, 13);
+    centreRadioGroup(freezeAlgorithmButtons, 18, 116, 120, 15, 15);
+    freezeDirectionLabel.setBounds(22, 170, 108, 13);
     for (std::size_t i = 0; i < freezeDirectionButtons.size(); ++i)
         freezeDirectionButtons[i].setBounds(freezeAlgorithmButtons[0].getBounds()
             .withY(184 + static_cast<int>(i) * 15));
-    freezeModeLabel.setBounds(134, 105, 135, 13);
-    freezeVoiceModeLabel.setBounds(134, 170, 135, 13);
-    centreRadioGroup(freezeVoiceModeButtons, 130, 143, 184, 15, 15);
+    freezeModeLabel.setBounds(144, 105, 108, 13);
+    freezeVoiceModeLabel.setBounds(144, 170, 108, 13);
+    centreRadioGroup(freezeVoiceModeButtons, 140, 116, 184, 15, 15);
     for (std::size_t i = 0; i < freezeModeButtons.size(); ++i)
         freezeModeButtons[i].setBounds(freezeVoiceModeButtons[0].getBounds()
             .withY(120 + static_cast<int>(i) * 15));

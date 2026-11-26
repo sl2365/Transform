@@ -1,5 +1,9 @@
 # Transform Changelog
 
+## 1.43.16 — FREEZE panel spacing — 26 November 2026
+
+- Equalise both FREEZE selector panels at 116 px; retain the 6 px gaps and recenter the existing two-row knob grid within the remaining 574 px panel. No DSP or parameter changes.
+
 ## 1.43.15 — FREEZE selector layout — 26 November 2026
 
 - Group ALGORITHM with DIRECTION and MODE with VOICES; align headings, radio rows and LED/text columns.
