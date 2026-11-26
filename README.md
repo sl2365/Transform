@@ -2,7 +2,7 @@
 
 <div align="center">
 
-[![Release](https://img.shields.io/github/v/release/sl2365/Transform?style=for-the-badge-square&logo=github&logoColor=white&color=orange)](https://github.com/sl2365/Transform/releases/latest/download/Transform.rar)
+[![Release](https://img.shields.io/github/v/release/sl2365/Transform?style=for-the-badge-square&logo=github&logoColor=white&color=6060C0)](https://github.com/sl2365/Transform/releases/latest/download/Transform.rar)
 [![Release Date](https://img.shields.io/github/release-date/sl2365/Transform?style=for-the-badge-square&logo=github&logoColor=white&color=yellow)](https://github.com/sl2365/Transform/releases)
 [![Latest Asset Downloads](https://img.shields.io/github/downloads/sl2365/Transform/latest/Transform.rar?style=for-the-badge-square&logo=github&logoColor=white&label=downloads-latest&displayAssetName=false&color=blue)](https://github.com/sl2365/Transform/releases/latest)
 [![Total Downloads](https://img.shields.io/github/downloads/sl2365/Transform/total?style=for-the-badge-square&logo=github&logoColor=white&label=downloads-total&color=blue)](https://github.com/sl2365/Transform/releases)
