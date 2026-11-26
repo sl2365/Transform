@@ -1,5 +1,22 @@
 # Transform Changelog
 
+## 1.43.20 — Dark petrol green theme — 26 November 2026
+
+- Use wallpaper-sampled dark petrol green RGB 12, 67, 70 (#0C4346) for the panel surrounds, colour bar, popup menu borders and README release/download badge. Preserve all other GUI and DSP behaviour.
+
+## 1.43.19 — Green theme — 26 November 2026
+
+- Replace the violet-blue theme accent with wallpaper-sampled dark green RGB 49, 96, 64 (#316040) for both panel surrounds, the colour bar and popup menu borders. Match the README release/download badge to the same colour. Preserve theme transitions, sequencer colours, control layouts and DSP.
+
+## 1.43.18 — PNG logo — 26 November 2026
+
+- Replace the required SVG logo with `Resources/logo.png`, embedded at build time and decoded into an editor-owned drawable. Preserve logo placement, aspect ratio, transparency and GUI Zoom interaction. Retain zoom access via a text fallback if image decoding fails. No DSP or parameter changes.
+
+## 1.43.17 — Compact knob alignment — 26 November 2026
+
+- Align HARMONY and VOCODER compact knob rows with FREEZE at y=103 and 169; retain horizontal positions, panel geometry and fonts. Match HARMONY value-box height to FREEZE for consistent rotary and readout alignment.
+- Use the theme accent #6060C0 for the README release download badge. No DSP or parameter changes.
+
 ## 1.43.16 — FREEZE panel spacing — 26 November 2026
 
 - Equalise both FREEZE selector panels at 116 px; retain the 6 px gaps and recenter the existing two-row knob grid within the remaining 574 px panel. No DSP or parameter changes.

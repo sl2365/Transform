@@ -6,7 +6,7 @@
 
 namespace
 {
-const juce::Colour themeColour(0xff6060c0);
+const juce::Colour themeColour(0xff0c4346);
 const juce::Colour knobTrackColour(0xff343940);
 const juce::Colour knobBodyColour(0xff2b3036);
 const juce::Colour knobLabelColour(0xff8d949e);
@@ -3553,8 +3553,15 @@ TransformAudioProcessorEditor::TransformAudioProcessorEditor(TransformAudioProce
         selectedPresetFolder = storedPresetFolder;
     }
 
-    logoDrawable = juce::Drawable::createFromImageData(
-        BinaryData::logo_svg, static_cast<size_t>(BinaryData::logo_svgSize));
+    // Decode the embedded PNG once per editor; never use ImageCache or a static image.
+    const auto logoImage = juce::ImageFileFormat::loadFrom(
+        BinaryData::logo_png, static_cast<size_t>(BinaryData::logo_pngSize));
+    if (logoImage.isValid())
+    {
+        auto drawable = std::make_unique<juce::DrawableImage>();
+        drawable->setImage(logoImage);
+        logoDrawable = std::move(drawable);
+    }
     setLookAndFeel(&lookAndFeel);
     addAndMakeVisible(content);
     content.addMouseListener(this, true);
@@ -3714,7 +3721,7 @@ TransformAudioProcessorEditor::TransformAudioProcessorEditor(TransformAudioProce
         for (auto* dial : knobs)
         {
             dial->slider.getProperties().set("compactHarmonyReadout", true);
-            dial->slider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 53, 15);
+            dial->slider.setTextBoxStyle(juce::Slider::TextBoxBelow, false, 53, 13);
             dial->label.setFont(juce::Font(juce::FontOptions(11.0f, juce::Font::bold)));
         }
     }
@@ -5986,6 +5993,13 @@ void TransformAudioProcessorEditor::paint(juce::Graphics& g)
                 | juce::RectanglePlacement::yMid
                 | juce::RectanglePlacement::onlyReduceInSize,
             1.0f);
+    else
+    {
+        g.setColour(knobLabelColour);
+        g.setFont(juce::Font(juce::FontOptions(22.0f, juce::Font::bold)));
+        g.drawText("Transform", juce::Rectangle<int>(22, 5, 280, 43),
+                   juce::Justification::centredLeft, false);
+    }
     g.restoreState();
 }
 
@@ -6032,7 +6046,7 @@ void TransformAudioProcessorEditor::resized()
         logoHitArea.setBounds(placement.appliedTo(
             logoDrawable->getDrawableBounds(), logoArea).toNearestInt());
     else
-        logoHitArea.setBounds(0, 0, 0, 0);
+        logoHitArea.setBounds(logoArea.toNearestInt());
     for (int i = 0; i < static_cast<int>(transform::modules::count); ++i)
     {
         const int x = 24 + (i * 812) / 9;
@@ -6087,6 +6101,9 @@ void TransformAudioProcessorEditor::resized()
     }
     freqDivisionDial->label.setBounds(freqDials[3]->label.getBounds());
     freqDivisionDial->slider.setBounds(freqDials[3]->slider.getBounds());
+    // Shared compact row heights for HARMONY, FREEZE and VOCODER.
+    constexpr int compactTopY = 103;
+    constexpr int compactBottomY = 169;
     harmonyModeLabel.setBounds(22, 117, 70, 13);
     centreRadioGroup(harmonyModeButtons, 18, 78, 136, 23, 22);
     for (std::size_t i = 0; i < harmonyDials.size(); ++i)
@@ -6097,7 +6114,7 @@ void TransformAudioProcessorEditor::resized()
         {
             auto* dial = harmonyDials[i][j];
             const int knobX = x + 18 + static_cast<int>(j % 3) * 53;
-            const int y = j < 3 ? 105 : 173;
+            const int y = j < 3 ? compactTopY : compactBottomY;
             dial->label.setBounds(knobX, y, 53, 14);
             dial->slider.setBounds(knobX, y + 14, 53, 44);
         }
@@ -6112,7 +6129,7 @@ void TransformAudioProcessorEditor::resized()
     for (std::size_t i = 0; i < freezeOrder.size(); ++i)
     {
         const int x = 279 + static_cast<int>(i % 6) * 90;
-        const int y = i < 6 ? 103 : 169;
+        const int y = i < 6 ? compactTopY : compactBottomY;
         auto* dial = freezeDials[static_cast<std::size_t>(freezeOrder[i])];
         dial->label.setBounds(x, y, 90, 14);
         dial->slider.setBounds(x, y + 14, 90, 44);
@@ -6144,7 +6161,7 @@ void TransformAudioProcessorEditor::resized()
     for (std::size_t i = 0; i < vocoderOrder.size(); ++i)
     {
         const int x = 133 + static_cast<int>(i % 8) * 87;
-        const int y = i < 8 ? 100 : 166;
+        const int y = i < 8 ? compactTopY : compactBottomY;
         auto* dial = vocoderDials[static_cast<std::size_t>(vocoderOrder[i])];
         dial->label.setBounds(x, y, 87, 14);
         dial->slider.setBounds(x, y + 14, 87, 44);

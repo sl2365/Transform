@@ -2,7 +2,7 @@
 
 <div align="center">
 
-[![Release](https://img.shields.io/github/v/release/sl2365/Transform?style=for-the-badge-square&logo=github&logoColor=white&color=6060C0)](https://github.com/sl2365/Transform/releases/latest/download/Transform.rar)
+[![Release](https://img.shields.io/github/v/release/sl2365/Transform?style=for-the-badge-square&logo=github&logoColor=white&color=0C4346)](https://github.com/sl2365/Transform/releases/latest/download/Transform.rar)
 [![Release Date](https://img.shields.io/github/release-date/sl2365/Transform?style=for-the-badge-square&logo=github&logoColor=white&color=yellow)](https://github.com/sl2365/Transform/releases)
 [![Latest Asset Downloads](https://img.shields.io/github/downloads/sl2365/Transform/latest/Transform.rar?style=for-the-badge-square&logo=github&logoColor=white&label=downloads-latest&displayAssetName=false&color=blue)](https://github.com/sl2365/Transform/releases/latest)
 [![Total Downloads](https://img.shields.io/github/downloads/sl2365/Transform/total?style=for-the-badge-square&logo=github&logoColor=white&label=downloads-total&color=blue)](https://github.com/sl2365/Transform/releases)
@@ -155,7 +155,7 @@ GATE (-80 to -20 dB, minimum disables), COMP (0–100%, compression amount), THR
 COMP applies automatic makeup gain scaled with the selected ratio. Gain Reduction indicates compressor attenuation before makeup, gate/EQ/saturation and master MIX; display is capped at 48 dB. Enable the module and adjust only the controls needed. Large boosts and saturation can produce output above full scale; reduce OUT as needed.
 
 - **MIX / OUT:** blend the dry and processed signals and adjust output level. The Mix Lock preserves the Mix setting when loading presets.
-- **THEME:** 0% shows the optional background artwork, 50% is plain charcoal and 100% is violet-blue (RGB 96, 96, 192). The colour bar fades in from transparent at 0% to fully opaque at 50%, then stays opaque. Double-click or middle-click to reset to 50%; the setting is saved in Settings.ini.
+- **THEME:** 0% shows the optional background artwork, 50% is plain charcoal and 100% is dark petrol green (RGB 12, 67, 70). The colour bar fades in from transparent at 0% to fully opaque at 50%, then stays opaque. Double-click or middle-click to reset to 50%; the setting is saved in Settings.ini.
 - **Power:** enable or bypass processing.
 - **Preset browser:** browse folders, favourites, save, copy/paste, and step through presets.
 - **Randomise (!!!):** generate new settings for the selected module’s visible, applicable rotary controls. Power, modes, inactive voices, master MIX/OUT, theme, sequencer, MIDI assignments, input gains, tuning reference and noise gate are unchanged. Feedback, voice levels, EQ boosts and wet blend use moderated random ranges.
@@ -243,7 +243,7 @@ The running plugin creates its data directory beside its VST3 file or bundle. Th
 
 ## Build
 
-Place the project at `_Projects\Transform` beside `_Projects\_Tools`. Supply your own `Resources\logo.svg` in the project folder; Resources are intentionally excluded from source packages.
+Place the project at `_Projects\Transform` beside `_Projects\_Tools`. Supply your own `Resources\logo.png` in the project folder; Resources are intentionally excluded from source packages. The PNG is embedded at build time, retains its aspect ratio and transparency, and remains clickable for GUI Zoom. Rebuild after replacing it. The available logo area is 280 × 43 px at 100% zoom; larger artwork is scaled down to fit.
 
 For custom artwork, place `transform_background.jpg` in `Resources` before building. A 910 × 470 px image matches the combined main and sequencer surround at 100% zoom. Both panels use one shared mapping, clipped separately to preserve the gap. The JPEG is optional; if missing or unreadable, charcoal is used instead. Replace the JPEG and rebuild to test another image.
 

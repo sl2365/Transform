@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.25)
-project(Transform VERSION 1.43.16 LANGUAGES C CXX)
+project(Transform VERSION 1.43.20 LANGUAGES C CXX)
 
 set(JUCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../../_Tools/JUCE/_9.0.4")
 if(NOT EXISTS "${JUCE_DIR}/CMakeLists.txt")
@@ -25,7 +25,7 @@ juce_add_plugin(Transform
     PRODUCT_NAME "Transform")
 
 # The logo is required; the background is optional and embedded at build time.
-set(TRANSFORM_RESOURCE_FILES "${CMAKE_CURRENT_LIST_DIR}/../Resources/logo.svg")
+set(TRANSFORM_RESOURCE_FILES "${CMAKE_CURRENT_LIST_DIR}/../Resources/logo.png")
 set(TRANSFORM_BACKGROUND "${CMAKE_CURRENT_LIST_DIR}/../Resources/transform_background.jpg")
 if(EXISTS "${TRANSFORM_BACKGROUND}")
     list(APPEND TRANSFORM_RESOURCE_FILES "${TRANSFORM_BACKGROUND}")
