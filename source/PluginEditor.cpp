@@ -2846,7 +2846,8 @@ void TransformAudioProcessorEditor::ParameterDragLabel::mouseDrag(
 
 TransformAudioProcessorEditor::LookAndFeel::LookAndFeel(
     bool compactPopupFont)
-    : useCompactPopupFont(compactPopupFont)
+    : popupBorderColour(themeColour),
+      useCompactPopupFont(compactPopupFont)
 {
     setColour(juce::Slider::textBoxTextColourId, knobValueColour);
     setColour(juce::Slider::textBoxBackgroundColourId, juce::Colours::transparentBlack);

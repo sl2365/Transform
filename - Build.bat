@@ -25,7 +25,7 @@ set "BUNDLE_BINARY=%BUILD_DIR%\Transform_artefacts\Release\VST3\Transform.vst3\C
 set "FINAL_PLUGIN=%DIST_DIR%\Transform.vst3"
 
 echo.
-echo Transform 64-bit VST3 - v1.43.20 Build
+echo Transform 64-bit VST3 - v1.43.21 Build
 echo ======================================
 echo.
 

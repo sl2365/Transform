@@ -225,7 +225,7 @@ private:
             return popupBorderColour;
         }
     private:
-        juce::Colour popupBorderColour { 0xff8080ff };
+        juce::Colour popupBorderColour;
         bool useCompactPopupFont = false;
     };
 

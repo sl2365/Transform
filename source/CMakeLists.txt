@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.25)
-project(Transform VERSION 1.43.20 LANGUAGES C CXX)
+project(Transform VERSION 1.43.21 LANGUAGES C CXX)
 
 set(JUCE_DIR "${CMAKE_CURRENT_LIST_DIR}/../../_Tools/JUCE/_9.0.4")
 if(NOT EXISTS "${JUCE_DIR}/CMakeLists.txt")

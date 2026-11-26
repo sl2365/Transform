@@ -1,5 +1,9 @@
 # Transform Changelog
 
+## 1.43.21 — Popup theme initialisation — 26 November 2026
+
+- Initialise every popup LookAndFeel instance from the current theme accent rather than a stale hard-coded lilac colour. The GUI Zoom menu and sequencer popups now use the petrol green border from their first opening, including after editor recreation. No DSP or parameter changes.
+
 ## 1.43.20 — Dark petrol green theme — 26 November 2026
 
 - Use wallpaper-sampled dark petrol green RGB 12, 67, 70 (#0C4346) for the panel surrounds, colour bar, popup menu borders and README release/download badge. Preserve all other GUI and DSP behaviour.
