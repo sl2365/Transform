@@ -17,6 +17,23 @@ constexpr auto bypass = "bypass";
 }
 
 constexpr float smoothingSeconds = 0.020f;
+constexpr std::array<const char*, 3> colourIds {{ "sequencerHue", "sequencerSaturation", "sequencerLuminance" }};
+constexpr auto waveformLearnId = "sequencerWaveformAction";
+constexpr auto userWaveformLearnId = "sequencerUserWaveformAction";
+
+void setActual(juce::AudioProcessorValueTreeState& parameters, const juce::String& id, float value)
+{
+    if (auto* parameter = parameters.getParameter(id))
+    {
+        if (! std::isfinite(value)) return;
+        const auto normalised = parameter->convertTo0to1(parameter->getNormalisableRange().snapToLegalValue(
+            juce::jlimit(parameter->getNormalisableRange().start, parameter->getNormalisableRange().end, value)));
+        if (parameter->getValue() == normalised) return;
+        parameter->beginChangeGesture();
+        parameter->setValueNotifyingHost(normalised);
+        parameter->endChangeGesture();
+    }
+}
 
 
 }
@@ -32,10 +49,12 @@ TransformAudioProcessor::TransformAudioProcessor()
     for (auto& value : sequencerAnimatedNormalised)
         value.store(-1.0f, std::memory_order_relaxed);
     parameters.state.setProperty("schemaVersion", stateSchemaVersion, nullptr);
-    setSavedParameterState(parameters.copyState());
     getSettingsDirectory().createDirectory();
     getPresetsDirectory().createDirectory();
     getSequencesDirectory().createDirectory();
+    loadDefaultInterfacePreferences();
+    setSavedParameterState(parameters.copyState());
+    refreshUserSequences();
     for (auto& event : midiIncoming) event.store(0, std::memory_order_relaxed);
     loadMidiMappings();
     updateMidiCapture();
@@ -57,7 +76,7 @@ void TransformAudioProcessor::loadMidiMappings()
         const auto id = line.upToFirstOccurrenceOf("=", false, false).trim();
         const auto ccText = line.fromFirstOccurrenceOf("=", false, false).trim();
         if (id.isEmpty() || ccText.isEmpty() || !ccText.containsOnly("0123456789")
-            || parameters.getParameter(id) == nullptr) continue;
+            || !isMidiLearnTarget(id)) continue;
         const int cc = ccText.getIntValue();
         if (cc < 0 || cc >= midiCCCount) continue;
         for (auto& mapped : midiMapping) if (mapped == id) mapped.clear();
@@ -93,7 +112,7 @@ void TransformAudioProcessor::updateMidiCapture()
 
 void TransformAudioProcessor::armMidiLearn(const juce::String& id)
 {
-    if (parameters.getParameter(id) == nullptr) return;
+    if (!isMidiLearnTarget(id)) return;
     midiArmAfter = midiLatest.load(std::memory_order_acquire) >> 14;
     midiArmedId = id;
     updateMidiCapture();
@@ -147,12 +166,9 @@ void TransformAudioProcessor::timerCallback()
             midiArmedId.clear();
             saveMidiMappings();
             // Apply the learning event even if this CC was already consumed.
-            if (auto* parameter = parameters.getParameter(midiMapping[cc]))
-            {
-                const float value = static_cast<float>(latest & 0x7f) / 127.0f;
-                const float snapped = parameter->convertTo0to1(parameter->convertFrom0to1(value));
-                if (parameter->getValue() != snapped) parameter->setValueNotifyingHost(snapped);
-            }
+            applyMidiLearnValue(midiMapping[cc], static_cast<int>(latest & 0x7f));
+            // Do not apply the learning event twice in the drain below.
+            midiConsumed[cc] = latest;
         }
     }
     for (std::size_t cc = 0; cc < midiIncoming.size(); ++cc)
@@ -161,12 +177,178 @@ void TransformAudioProcessor::timerCallback()
         if (event == midiConsumed[cc]) continue;
         midiConsumed[cc] = event;
         if (midiMapping[cc].isEmpty()) continue;
-        if (auto* parameter = parameters.getParameter(midiMapping[cc]))
+        applyMidiLearnValue(midiMapping[cc], static_cast<int>(event & 0x7f));
+    }
+}
+
+bool TransformAudioProcessor::isMidiLearnTarget(const juce::String& id) const
+{
+    return id == waveformLearnId || id == userWaveformLearnId || parameters.getParameter(id) != nullptr;
+}
+
+void TransformAudioProcessor::loadDefaultInterfacePreferences()
+{
+    juce::StringArray lines;
+    lines.addLines(getSettingsDirectory().getChildFile("Settings.ini").loadFileAsString());
+    bool gui = false;
+    for (auto line : lines)
+    {
+        line = line.trim();
+        if (line.startsWithChar('[')) gui = line.equalsIgnoreCase("[GUI]");
+        else if (gui && line.upToFirstOccurrenceOf("=", false, false).trim().equalsIgnoreCase("ScalePercent"))
+            setEditorZoomPercent(line.fromFirstOccurrenceOf("=", false, false).trim().getIntValue());
+    }
+    const auto xml = juce::XmlDocument::parse(getSettingsDirectory().getChildFile("SequencerColour.xml"));
+    if (xml == nullptr || !xml->hasTagName("SequencerColour")) return;
+    std::array<float, 3> values {};
+    for (std::size_t i = 0; i < values.size(); ++i)
+    {
+        if (!xml->hasAttribute(colourIds[i])) return;
+        const auto value = xml->getDoubleAttribute(colourIds[i]);
+        if (!std::isfinite(value) || value < (i == 2 ? 0.2 : 0.0) - 0.00001 || value > 1.0) return;
+        values[i] = static_cast<float>(value);
+    }
+    for (std::size_t i = 0; i < values.size(); ++i) defaultSequencerColour[i].store(values[i]);
+    hasDefaultSequencerColour.store(true);
+    applyDefaultSequencerColour();
+}
+
+bool TransformAudioProcessor::isSequencerColourLocked() const
+{
+    if (!hasDefaultSequencerColour.load()) return false;
+    for (std::size_t i = 0; i < colourIds.size(); ++i)
+        if (std::abs(parameters.getRawParameterValue(colourIds[i])->load() - defaultSequencerColour[i].load()) > 0.00049f)
         {
-            const float value = static_cast<float>(event & 0x7f) / 127.0f;
-            const float snapped = parameter->convertTo0to1(parameter->convertFrom0to1(value));
-            if (parameter->getValue() != snapped) parameter->setValueNotifyingHost(snapped);
+            colourLockSuppressed.store(false);
+            return false;
         }
+    return !colourLockSuppressed.load();
+}
+
+void TransformAudioProcessor::applyDefaultSequencerColour()
+{
+    if (!hasDefaultSequencerColour.load()) return;
+    for (std::size_t i = 0; i < colourIds.size(); ++i)
+        setActual(parameters, colourIds[i], defaultSequencerColour[i].load());
+}
+
+bool TransformAudioProcessor::toggleSequencerColourLock()
+{
+    if (isSequencerColourLocked())
+    {
+        colourLockSuppressed.store(true);
+        return true;
+    }
+    std::array<float, 3> values {};
+    juce::XmlElement xml("SequencerColour");
+    for (std::size_t i = 0; i < values.size(); ++i)
+    {
+        values[i] = parameters.getRawParameterValue(colourIds[i])->load();
+        xml.setAttribute(colourIds[i], static_cast<double>(values[i]));
+    }
+    const juce::TemporaryFile temporary(getSettingsDirectory().getChildFile("SequencerColour.xml"));
+    if (!xml.writeTo(temporary.getFile()) || !temporary.overwriteTargetFileWithTemporary()) return false;
+    for (std::size_t i = 0; i < values.size(); ++i) defaultSequencerColour[i].store(values[i]);
+    hasDefaultSequencerColour.store(true);
+    colourLockSuppressed.store(false);
+    return true;
+}
+
+std::uint32_t TransformAudioProcessor::getSequenceSelectionRevision() noexcept
+{
+    if (resetSequenceSelection.exchange(false))
+    {
+        selectedWaveform = -1;
+        selectedUserSequence.clear();
+        ++sequenceSelectionRevision;
+    }
+    return sequenceSelectionRevision;
+}
+
+void TransformAudioProcessor::refreshUserSequences()
+{
+    (void)getSequenceSelectionRevision();
+    userSequenceRefreshTime = juce::Time::getMillisecondCounter();
+    juce::Array<juce::File> files;
+    getSequencesDirectory().findChildFiles(files, juce::File::findFiles, false, "*.transformseq");
+    std::sort(files.begin(), files.end(), [](const juce::File& a, const juce::File& b)
+    {
+        return a.getFileNameWithoutExtension().compareNatural(b.getFileNameWithoutExtension(), true) < 0;
+    });
+    if (userSequenceFiles != files)
+    {
+        userSequenceFiles = std::move(files);
+        ++sequenceSelectionRevision;
+    }
+    bool found = false;
+    for (const auto& file : userSequenceFiles)
+        if (file.getFullPathName() == selectedUserSequence) { found = true; break; }
+    if (!found && selectedUserSequence.isNotEmpty())
+    {
+        selectedUserSequence.clear();
+        ++sequenceSelectionRevision;
+    }
+}
+
+void TransformAudioProcessor::selectWaveform(int index)
+{
+    (void)getSequenceSelectionRevision();
+    if (index < 0 || index >= 14) return;
+    const bool bipolar = parameters.getRawParameterValue("sequencerBipolar")->load() >= 0.5f;
+    const auto values = transform::sequencer::makeWaveform(static_cast<transform::sequencer::Waveform>(index), bipolar);
+    for (int i = 0; i < transform::sequencer::stepCount; ++i)
+        setActual(parameters, transform::sequencer::stepParameterId(i), values[static_cast<std::size_t>(i)]);
+    selectedWaveform = index;
+    selectedUserSequence.clear();
+    ++sequenceSelectionRevision;
+}
+
+bool TransformAudioProcessor::selectUserSequence(int index)
+{
+    (void)getSequenceSelectionRevision();
+    if (!juce::isPositiveAndBelow(index, userSequenceFiles.size())) return false;
+    const auto file = userSequenceFiles[index];
+    const auto xml = juce::XmlDocument::parse(file);
+    if (xml == nullptr || !xml->hasTagName("TransformSequence")) return false;
+    if (xml->hasAttribute("gateShort")) setActual(parameters, "sequencerGateShortLength", static_cast<float>(xml->getDoubleAttribute("gateShort", 0.5)));
+    if (xml->hasAttribute("gateLong")) setActual(parameters, "sequencerGateLongLength", static_cast<float>(xml->getDoubleAttribute("gateLong", 0.9)));
+    for (auto* step : xml->getChildWithTagNameIterator("Step"))
+    {
+        const auto i = step->getIntAttribute("index", -1);
+        if (!juce::isPositiveAndBelow(i, transform::sequencer::stepCount)) continue;
+        setActual(parameters, transform::sequencer::stepParameterId(i), static_cast<float>(step->getDoubleAttribute("value", 1.0)));
+        if (step->hasAttribute("gate")) setActual(parameters, transform::sequencer::gateStepParameterId(i), static_cast<float>(step->getDoubleAttribute("gate", 3.0)));
+    }
+    selectedUserSequence = file.getFullPathName();
+    selectedWaveform = -1;
+    ++sequenceSelectionRevision;
+    return true;
+}
+
+void TransformAudioProcessor::applyMidiLearnValue(const juce::String& id, int value)
+{
+    (void)getSequenceSelectionRevision();
+    value = juce::jlimit(0, 127, value);
+    if (id == waveformLearnId)
+    {
+        const int index = value * 14 / 128;
+        if (index != selectedWaveform) selectWaveform(index);
+        return;
+    }
+    if (id == userWaveformLearnId)
+    {
+        if (juce::Time::getMillisecondCounter() - userSequenceRefreshTime >= 1000u) refreshUserSequences();
+        const auto count = userSequenceFiles.size();
+        if (count == 0) return;
+        const auto index = static_cast<int>(static_cast<std::int64_t>(value) * count / 128);
+        if (userSequenceFiles[index].getFullPathName() != selectedUserSequence) selectUserSequence(index);
+        return;
+    }
+    if (auto* parameter = parameters.getParameter(id))
+    {
+        const float snapped = parameter->convertTo0to1(parameter->convertFrom0to1(static_cast<float>(value) / 127.0f));
+        if (parameter->getValue() != snapped) parameter->setValueNotifyingHost(snapped);
+        if (id == colourIds[0] || id == colourIds[1] || id == colourIds[2]) (void)isSequencerColourLocked();
     }
 }
 
@@ -269,9 +451,15 @@ juce::Result TransformAudioProcessor::loadPresetFromFile(
         return juce::Result::fail(
             "This preset does not use the current Transform schema.");
 
+    const bool keepDefaultColour = isSequencerColourLocked();
     restored.removeProperty("currentPresetPath", nullptr);
+    restored.removeProperty("editorZoomPercent", nullptr);
+    restored.removeProperty("colourLockSuppressed", nullptr);
     setSavedParameterState(restored);
     parameters.replaceState(restored);
+    colourLockSuppressed.store(false);
+    if (keepDefaultColour) applyDefaultSequencerColour();
+    resetSequenceSelection.store(true);
     parameters.state.setProperty(
         "currentPresetPath", presetFile.getFullPathName(), nullptr);
     return juce::Result::ok();
@@ -1478,6 +1666,9 @@ void TransformAudioProcessor::getStateInformation(juce::MemoryBlock& destination
 {
     auto state = parameters.copyState();
     state.setProperty("editorModule", getEditorModule(), nullptr);
+    state.setProperty("editorZoomPercent", getEditorZoomPercent(), nullptr);
+    (void)isSequencerColourLocked();
+    state.setProperty("colourLockSuppressed", colourLockSuppressed.load(), nullptr);
     state.setProperty("schemaVersion", stateSchemaVersion, nullptr);
     if (const auto xml = state.createXml())
         copyXmlToBinary(*xml, destination);
@@ -1495,8 +1686,14 @@ void TransformAudioProcessor::setStateInformation(const void* data, int size)
     if (state.hasProperty("editorModule"))
         setEditorModule(static_cast<int>(state.getProperty("editorModule")));
     state.removeProperty("editorModule", nullptr);
+    if (state.hasProperty("editorZoomPercent")) setEditorZoomPercent(static_cast<int>(state.getProperty("editorZoomPercent")));
+    state.removeProperty("editorZoomPercent", nullptr);
+    const bool suppressColourLock = static_cast<bool>(state.getProperty("colourLockSuppressed", false));
+    state.removeProperty("colourLockSuppressed", nullptr);
     setSavedParameterState(state);
     parameters.replaceState(state);
+    colourLockSuppressed.store(suppressColourLock);
+    resetSequenceSelection.store(true);
 }
 
 juce::AudioProcessorEditor* TransformAudioProcessor::createEditor()

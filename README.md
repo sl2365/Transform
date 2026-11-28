@@ -35,7 +35,7 @@ Credits: Many thanks to Artvera for the logo.
 
 Use the current development build with a fresh plugin instance when testing.
 
-- **Logo:** click to open the GUI Zoom menu and choose a GUI zoom from 75% to 300%, in 25% increments. The window can also be resized using its corner. The selected zoom is saved in Settings.ini.
+- **Logo:** click to open or close the GUI Zoom menu and choose a GUI zoom from 75% to 300%, in 25% increments. The window can also be resized using its corner. Zoom is saved with each DAW plug-in instance, not with effect presets. Use **Set as Default** in the GUI Zoom menu to save the current zoom as the starting size for new instances in Settings.ini. Closing the editor preserves its instance zoom.
 - **Module tabs:** click TUNE, PITCH, FREQ, HARMONY, FREEZE, VOCODER, MORPH, DE-ESS or CHANNEL to edit that module. The aqua LED inside each tab independently enables or bypasses the module; multiple modules may be enabled at once. All start disabled. Power states are saved and host-automatable; selecting a tab does not change any power state.
 
   Each plugin instance remembers its selected tab when the editor is closed and reopened; the tab is also stored in host state, independently of sound presets.
@@ -210,6 +210,10 @@ Middle-click a rotary or slider (including the sequencer controls and individual
 
 Resetting a linked sequencer range retains the normal range-link behaviour. These gestures do not reset the entire preset or alter other independent parameters.
 
+### Sequencer colour default
+
+The padlock to the right of the LUM label saves the current three-knob colour as the default in `Settings/SequencerColour.xml`. It lights yellow when the current colour matches the stored default and is locked. While lit, loading a Transform preset preserves the default colour. Clicking the lit lock unlocks it so presets can supply their own colours. Editing the colour away from the default extinguishes the lock; returning to the exact default lights it again. Clicking an unlit lock saves the current colour as the new default. New instances read that default; existing instances retain their own loaded default until recreated or explicitly changed. DAW project state restores the actual HSL values and the explicit unlock state, regardless of the current global default. A colour change does not write a file unless the padlock is clicked.
+
 ## MIDI Learn
 
 MIDI Learn and existing assignments remain available when the plug-in’s own Power switch is off, as long as the host delivers MIDI CC messages. Native host bypass is separate; CCs are also captured in the bypass callback when the host invokes it. A host that suspends processing or stops forwarding MIDI while bypassed cannot be controlled by the plug-in.
@@ -218,7 +222,7 @@ Click the MIDI socket icon immediately left of Random. Blue outlines show eligib
 
 Assignments are omni-channel, one CC per parameter and one parameter per CC; reassigning either replaces its previous mapping. Channel-mode CCs 120–127 are reserved. Mappings are saved independently of presets in `Transform_Data/Settings/MidiLearn.ini` and loaded by new instances. The host must deliver MIDI CC events to the plugin.
 
-Controller updates are coalesced on the message thread (approximately 60 Hz), not sample-accurate. MIDI Learn covers visible effect knobs, individual power controls, radio-choice groups, SCALE, standard parameter-backed sequencer controls and visible assigned target-depth knobs; GUI-only controls, step graph and compound polarity control are not included.
+Controller updates are coalesced on the message thread (approximately 60 Hz), not sample-accurate. WAVEFORM and USER can also be learned: CC values select items across the available list, and the chosen pattern replaces the current steps. USER uses the naturally sorted saved sequence files; an empty list does nothing. Repeated CC values in the same item do not reload a pattern. Selection works with the editor closed; the display synchronises when opened. A single 7-bit CC can address at most 128 distinct choices. MIDI Learn covers visible effect knobs, individual power controls, radio-choice groups, SCALE, standard parameter-backed sequencer controls and visible assigned target-depth knobs; GUI-only controls, step graph and compound polarity control are not included.
 
 ## Sequencer and Gate
 
@@ -227,7 +231,7 @@ The complete sequencer supports:
 - 32 steps and 16 drag-and-drop target slots, with individual enable and depth.
 - Host Sync or Played MIDI triggering; Loop, Bounce, Reverse, Played and Random directions.
 - Unipolar +, Bipolar and Unipolar - movement; Start/End, linked range, Attack, Release, Depth and Offset.
-- Generated waveforms, saved user sequences, colour adjustments and animated controls.
+- Generated waveforms, saved user sequences, colour adjustments and animated controls. WAVEFORM and USER display the last selected item; use the mouse wheel to step through available choices. The first downwards/upwards wheel step from the placeholder selects the first/last item respectively.
 - Off, Short, Long and Rest gate states, independent gate lengths, nudging and randomisation.
 - Gate routing: Input, Effect, Output or Off.
 

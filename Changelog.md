@@ -1,5 +1,26 @@
 # Transform Changelog
 
+## 1.43.25 — Resize tracking compile fix — 28 November 2026
+
+- Restore editor-width tracking for the zoom information display, without changing the global default zoom on ordinary resizing. Fix MSVC C2065 in PluginEditor.cpp. Preserve all other functionality.
+
+## 1.43.24 — Sequencer colour lock position — 28 November 2026
+
+- Move the shared HSL padlock immediately to the right of the LUM label, keeping its size, appearance and behaviour unchanged. Trim the LUM tooltip hit area to avoid covering the button. No DSP or parameter changes.
+
+## 1.43.23 — Instance zoom, sequencer colour lock and waveform MIDI Learn — 28 November 2026
+
+- Restore the compact Dusk zoom menu geometry (75 px minimum width, 19 px rows), retaining the shared theme-coloured renderer and GUI Zoom title. Store zoom in DAW instance state; Set as Default explicitly changes the starting zoom in Settings.ini. Effect presets do not alter zoom.
+- Add a shared HUE/SAT/LUM padlock for the user default colour. Preserve the colour while locked when loading effect presets, track exact matches, and restore the actual colour with DAW state.
+- Add processor-side MIDI Learn actions for WAVEFORM and USER, independent of editor lifetime. Use the same sequence loading path for manual and CC selection; refresh the sorted USER file list and avoid repeated loads of the same item.
+- No audio DSP or parameter-layout changes. Windows compilation, host interaction and visual checks remain outstanding.
+
+## 1.43.22 — Zoom and sequencer dropdowns — 28 November 2026
+
+- Use the shared popup font and renderer with a 148 px minimum width and 22 px item height at 100% zoom. Retain the GUI Zoom heading and current theme border. Use a transparent, logo-sized button with a hand cursor and native popup dismissal; second click closes the menu.
+- Use one stepped dropdown implementation throughout, including WAVEFORM, USER and DIRECTION. Keep actual selected items visible and preserve a USER selection after refresh only if the corresponding sequence still exists.
+- No DSP or parameter changes. Windows build and actual host interaction require verification.
+
 ## 1.43.21 — Popup theme initialisation — 26 November 2026
 
 - Initialise every popup LookAndFeel instance from the current theme accent rather than a stale hard-coded lilac colour. The GUI Zoom menu and sequencer popups now use the petrol green border from their first opening, including after editor recreation. No DSP or parameter changes.

@@ -795,17 +795,6 @@ public:
             editingGateRow = false;
         }
 
-        void applyWaveform(transform::sequencer::Waveform waveform)
-        {
-            const bool isBipolar = polarityMode == 1;
-            const auto values = transform::sequencer::makeWaveform(
-                waveform, isBipolar);
-            for (int step = 0; step < transform::sequencer::stepCount; ++step)
-                setParameterActualValue(steps[static_cast<size_t>(step)],
-                                        values[static_cast<size_t>(step)]);
-            repaint();
-        }
-
         void nudge(int direction)
         {
             std::array<float, transform::sequencer::stepCount> values {};
@@ -1704,6 +1693,18 @@ public:
            &shortGateSlider, &longGateSlider }};
         for (auto* component : components)
             addAndMakeVisible(component);
+        colourLockButton.setName("Colour Lock");
+        colourLockButton.getProperties().set("mixLockIcon", true);
+        colourLockButton.getProperties().set("activeColour", knobIndicatorColour.toString());
+        colourLockButton.setTooltip("Save the current HSL colour as default, or unlock to use preset colours.");
+        colourLockButton.setClickingTogglesState(false);
+        colourLockButton.onClick = [this]
+        {
+            const bool saved = processor.toggleSequencerColourLock();
+            colourLockButton.setToggleState(processor.isSequencerColourLocked(), juce::dontSendNotification);
+            if (!saved && showHelp) showHelp("COLOUR LOCK | Could not save the default colour.");
+        };
+        addAndMakeVisible(colourLockButton);
 
         hostSync.setButtonText("HOST SYNC");
         enabledButton.setButtonText("ON");
@@ -1887,11 +1888,8 @@ public:
         {
             const int selected = waveformBox.getSelectedItemIndex();
             if (selected >= 0)
-                waveformBox.rememberWheelIndex(selected);
-            if (selected >= 0)
-                grid.applyWaveform(
-                    static_cast<transform::sequencer::Waveform>(selected));
-            waveformBox.setSelectedId(0, juce::dontSendNotification);
+                processor.selectWaveform(selected);
+            syncSequenceSelectors();
         };
 
         directionBox.addItemList(
@@ -1908,6 +1906,8 @@ public:
             box->setScrollWheelEnabled(true);
             box->getProperties().set("compactClosedCombo", true);
         }
+        waveformBox.getProperties().set("midiLearnId", "sequencerWaveformAction");
+        userSequenceBox.getProperties().set("midiLearnId", "sequencerUserWaveformAction");
         directionBox.getProperties().set("midiLearnId", "sequencerDirection");
         hostSync.getProperties().set("midiLearnId", "sequencerHostSync");
         enabledButton.getProperties().set("midiLearnId", "sequencerEnabled");
@@ -2116,6 +2116,7 @@ public:
         userSequenceBox.setTextWhenNothingSelected("USER");
         userSequenceBox.onChange = [this] { loadSelectedUserSequence(); };
         refreshUserSequences();
+        colourLockButton.setToggleState(processor.isSequencerColourLocked(), juce::dontSendNotification);
         updateAccent();
     }
 
@@ -2196,6 +2197,8 @@ public:
             syncPolarityFromParameters();
         if (! updatingGateModeParameter)
             syncGateModeFromParameter();
+        syncSequenceSelectors();
+        colourLockButton.setToggleState(processor.isSequencerColourLocked(), juce::dontSendNotification);
         grid.repaintIfChanged();
         targets.repaintIfChanged();
         updateAnimatedControls();
@@ -2247,7 +2250,7 @@ public:
         headingHelpAreas[1].setBounds(443, 11, 106, 13);
         headingHelpAreas[2].setBounds(773, 11, 42, 13);
         headingHelpAreas[3].setBounds(815, 11, 38, 13);
-        headingHelpAreas[4].setBounds(853, 11, 38, 13);
+        headingHelpAreas[4].setBounds(853, 11, 32, 13);
         rateSlider.setBounds(251, 26, 44, 48);
         startLabel.setBounds(299, 11, 60, 13);
         startSlider.setBounds(307, 26, 44, 48);
@@ -2263,6 +2266,7 @@ public:
         colourSlider.setBounds(781, 29, 30, 30);
         saturationSlider.setBounds(819, 29, 30, 30);
         luminanceSlider.setBounds(857, 29, 30, 30);
+        colourLockButton.setBounds(885, 10, 14, 14);
         enabledButton.setBounds(20, 88, 34, 24);
         bipolarButton.setBounds(56, 88, 84, 24);
         attackLabel.setBounds(16, 118, 68, 13);
@@ -2476,6 +2480,7 @@ private:
 
     void updateAccent()
     {
+        colourLockButton.setToggleState(processor.isSequencerColourLocked(), juce::dontSendNotification);
         // Target labels and the three colour controls must remain readable.
         // LUM deliberately affects only the step display.
         accent = juce::Colour::fromHSV(
@@ -2533,70 +2538,41 @@ private:
         update(longGateSlider, "sequencerGateLongLength");
     }
 
+    void syncSequenceSelectors(bool force = false)
+    {
+        const auto revision = processor.getSequenceSelectionRevision();
+        if (!force && sequenceSelectionRevision == revision) return;
+        sequenceSelectionRevision = revision;
+        const auto& files = processor.getUserSequenceFiles();
+        if (userSequenceFiles != files)
+        {
+            userSequenceFiles = files;
+            userSequenceBox.clear(juce::dontSendNotification);
+            for (int index = 0; index < userSequenceFiles.size(); ++index)
+                userSequenceBox.addItem(userSequenceFiles[index].getFileNameWithoutExtension(), index + 1);
+            userSequenceBox.setTextWhenNothingSelected("USER");
+        }
+        const int waveform = processor.getSelectedWaveform();
+        if (waveformBox.getSelectedItemIndex() != waveform)
+            waveformBox.setSelectedItemIndex(waveform, juce::dontSendNotification);
+        int userIndex = -1;
+        const auto selected = processor.getSelectedUserSequence();
+        for (int i = 0; i < userSequenceFiles.size(); ++i)
+            if (userSequenceFiles[i].getFullPathName() == selected) { userIndex = i; break; }
+        if (userSequenceBox.getSelectedItemIndex() != userIndex)
+            userSequenceBox.setSelectedItemIndex(userIndex, juce::dontSendNotification);
+    }
+
     void refreshUserSequences()
     {
-        const auto selectedText = userSequenceBox.getText();
-        userSequenceFiles.clear();
-        const auto directory = TransformAudioProcessor::getSequencesDirectory();
-        directory.createDirectory();
-        directory.findChildFiles(userSequenceFiles, juce::File::findFiles,
-                                 false, "*.transformseq");
-        std::sort(userSequenceFiles.begin(), userSequenceFiles.end(),
-            [](const juce::File& left, const juce::File& right)
-            {
-                return left.getFileNameWithoutExtension().compareNatural(
-                           right.getFileNameWithoutExtension(), true) < 0;
-            });
-        userSequenceBox.clear(juce::dontSendNotification);
-        userSequenceBox.rememberWheelIndex(-1);
-        for (int index = 0; index < userSequenceFiles.size(); ++index)
-            userSequenceBox.addItem(
-                userSequenceFiles[index].getFileNameWithoutExtension(),
-                index + 1);
-        userSequenceBox.setTextWhenNothingSelected(
-            selectedText.isNotEmpty() ? selectedText : "USER");
-        for (int i = 0; i < userSequenceBox.getNumItems(); ++i)
-            if (userSequenceBox.getItemText(i) == selectedText)
-            {
-                userSequenceBox.setSelectedItemIndex(i, juce::dontSendNotification);
-                break;
-            }
+        processor.refreshUserSequences();
+        syncSequenceSelectors(true);
     }
 
     void loadSelectedUserSequence()
     {
-        const int index = userSequenceBox.getSelectedId() - 1;
-        if (! juce::isPositiveAndBelow(index, userSequenceFiles.size()))
-            return;
-        const auto xml = juce::XmlDocument::parse(userSequenceFiles[index]);
-        if (xml == nullptr || ! xml->hasTagName("TransformSequence"))
-            return;
-        if (xml->hasAttribute("gateShort"))
-            shortGateSlider.setValue(
-                xml->getDoubleAttribute("gateShort", 0.50),
-                juce::sendNotificationSync);
-        if (xml->hasAttribute("gateLong"))
-            longGateSlider.setValue(
-                xml->getDoubleAttribute("gateLong", 0.90),
-                juce::sendNotificationSync);
-        for (auto* stepElement : xml->getChildWithTagNameIterator("Step"))
-        {
-            const int step = stepElement->getIntAttribute("index", -1);
-            if (! juce::isPositiveAndBelow(step,
-                                           transform::sequencer::stepCount))
-                continue;
-            setParameterActualValue(processor.parameters.getParameter(
-                transform::sequencer::stepParameterId(step)),
-                static_cast<float>(stepElement->getDoubleAttribute("value", 1.0)));
-            if (stepElement->hasAttribute("gate"))
-                setParameterActualValue(processor.parameters.getParameter(
-                    transform::sequencer::gateStepParameterId(step)),
-                    static_cast<float>(stepElement->getDoubleAttribute(
-                        "gate", static_cast<double>(
-                            static_cast<int>(
-                                transform::sequencer::GateStepMode::rest)))));
-        }
-        grid.repaint();
+        processor.selectUserSequence(userSequenceBox.getSelectedItemIndex());
+        syncSequenceSelectors(true);
     }
 
     void saveUserSequence()
@@ -2661,6 +2637,7 @@ private:
     juce::ToggleButton animateButton;
     juce::ToggleButton gateModeButton;
     juce::ToggleButton rangeLinkButton;
+    juce::ToggleButton colourLockButton;
     SteppedComboBox waveformBox;
     SteppedComboBox userSequenceBox;
     SteppedComboBox directionBox;
@@ -2701,6 +2678,7 @@ private:
         moveAttachment, colourAttachment, saturationAttachment,
         luminanceAttachment, shortGateAttachment, longGateAttachment;
     juce::Array<juce::File> userSequenceFiles;
+    std::uint32_t sequenceSelectionRevision = 0;
     std::unique_ptr<juce::FileChooser> sequenceFileChooser;
     juce::Colour accent { 0xff34d6c6 };
     int linkedRangeLength = transform::sequencer::stepCount - 1;
@@ -3417,7 +3395,7 @@ public:
         const auto add = [&](juce::Component& component, const juce::String& id, juce::Rectangle<int> local, bool circle)
         {
             if (id.isEmpty() || !component.isShowing() || !component.isEnabled()
-                || editor.processor.parameters.getParameter(id) == nullptr) return;
+                || !editor.processor.isMidiLearnTarget(id)) return;
             auto b = getLocalArea(&component, local).toFloat();
             if (b.isEmpty()) return;
             for (auto& t : next)
@@ -3476,7 +3454,10 @@ public:
         {
             editor.processor.armMidiLearn(id);
             const auto* parameter = editor.processor.parameters.getParameter(id);
-            editor.information.setText("MIDI LEARN | Move a MIDI controller for " + (parameter != nullptr ? parameter->getName(64) : id) + ".", juce::dontSendNotification);
+            const auto targetName = parameter != nullptr ? parameter->getName(64)
+                : id == "sequencerWaveformAction" ? juce::String("WAVEFORM")
+                : id == "sequencerUserWaveformAction" ? juce::String("USER") : id;
+            editor.information.setText("MIDI LEARN | Move a MIDI controller for " + targetName + ".", juce::dontSendNotification);
         }
         refresh();
     }
@@ -3572,6 +3553,8 @@ TransformAudioProcessorEditor::TransformAudioProcessorEditor(TransformAudioProce
     logoHitArea.setTooltip("Choose the interface zoom percentage");
     logoHitArea.setInterceptsMouseClicks(true, false);
     logoHitArea.setMouseCursor(juce::MouseCursor::PointingHandCursor);
+    logoHitArea.setTriggeredOnMouseDown(false);
+    logoHitArea.onClick = [this] { showZoomMenu(); };
     content.addAndMakeVisible(logoHitArea);
 
     versionLabel.setText("v" + juce::String(JucePlugin_VersionString),
@@ -4316,10 +4299,11 @@ TransformAudioProcessorEditor::TransformAudioProcessorEditor(TransformAudioProce
     updatePresetBrowserVisibility();
     setResizable(true, true);
     updateZoomLimits();
-    const float scale = static_cast<float>(storedSettings.scalePercent) * 0.01f;
+    const float scale = static_cast<float>(processor.getEditorZoomPercent()) * 0.01f;
     setSize(juce::roundToInt(static_cast<float>(designWidth) * scale),
             juce::roundToInt(static_cast<float>(activeDesignHeight()) * scale));
     observedEditorWidth = getWidth();
+    zoomTrackingReady = true;
     observedThemeValue = themeDial->slider.getValue();
     saveInterfaceSettings();
     startTimerHz(30);
@@ -4328,6 +4312,8 @@ TransformAudioProcessorEditor::TransformAudioProcessorEditor(TransformAudioProce
 TransformAudioProcessorEditor::~TransformAudioProcessorEditor()
 {
     stopTimer();
+    if (zoomMenuOpen)
+        juce::PopupMenu::dismissAllActiveMenus();
     processor.cancelMidiLearn();
     midiLearnOverlay.reset();
     saveInterfaceSettings();
@@ -4354,11 +4340,6 @@ bool TransformAudioProcessorEditor::keyPressed(const juce::KeyPress& key)
 
 void TransformAudioProcessorEditor::mouseDown(const juce::MouseEvent& event)
 {
-    if (event.eventComponent == &logoHitArea && event.mods.isLeftButtonDown())
-    {
-        showZoomMenu();
-        return;
-    }
     if (! presetBrowserOpen || ! event.mods.isPopupMenu())
         return;
     for (auto* component = event.eventComponent; component != nullptr;
@@ -4991,14 +4972,21 @@ void TransformAudioProcessorEditor::updateZoomLimits()
 
 void TransformAudioProcessorEditor::setZoomPercent(int percent)
 {
-    const auto scale = juce::jlimit(75, 300, percent) * 0.01f;
+    processor.setEditorZoomPercent(percent);
+    const auto scale = processor.getEditorZoomPercent() * 0.01f;
     setSize(juce::roundToInt(designWidth * scale),
             juce::roundToInt(activeDesignHeight() * scale));
-    saveInterfaceSettings();
 }
 
 void TransformAudioProcessorEditor::showZoomMenu()
 {
+    if (zoomMenuOpen)
+    {
+        // Keep the open flag until the native popup completion callback runs.
+        juce::PopupMenu::dismissAllActiveMenus();
+        return;
+    }
+    zoomMenuOpen = true;
     juce::PopupMenu menu;
     menu.setLookAndFeel(&lookAndFeel);
     menu.addSectionHeader("GUI Zoom");
@@ -5007,6 +4995,8 @@ void TransformAudioProcessorEditor::showZoomMenu()
         menu.addItem(percent, juce::String(percent) + "%", true,
                      percent == current);
 
+    menu.addSeparator();
+    menu.addItem(1001, "Set as Default");
     const juce::Component::SafePointer<TransformAudioProcessorEditor> safeThis(this);
     menu.showMenuAsync(
         juce::PopupMenu::Options()
@@ -5019,8 +5009,13 @@ void TransformAudioProcessorEditor::showZoomMenu()
             .withStandardItemHeight(19),
         [safeThis](int result)
         {
-            if (safeThis != nullptr && result >= 75 && result <= 300)
+            if (safeThis == nullptr)
+                return;
+            safeThis->zoomMenuOpen = false;
+            if (result >= 75 && result <= 300)
                 safeThis->setZoomPercent(result);
+            else if (result == 1001)
+                safeThis->saveInterfaceSettings(true);
         });
 }
 
@@ -6006,6 +6001,8 @@ void TransformAudioProcessorEditor::paint(juce::Graphics& g)
 
 void TransformAudioProcessorEditor::resized()
 {
+    if (zoomTrackingReady)
+        processor.setEditorZoomPercent(juce::roundToInt(100.0f * getWidth() / designWidth));
     const int designHeight = activeDesignHeight();
     content.setTransform(juce::AffineTransform());
     content.setBounds(0, 0, designWidth, designHeight);
@@ -6045,7 +6042,7 @@ void TransformAudioProcessorEditor::resized()
         | juce::RectanglePlacement::onlyReduceInSize);
     if (logoDrawable != nullptr)
         logoHitArea.setBounds(placement.appliedTo(
-            logoDrawable->getDrawableBounds(), logoArea).toNearestInt());
+            logoDrawable->getDrawableBounds(), logoArea).getSmallestIntegerContainer());
     else
         logoHitArea.setBounds(logoArea.toNearestInt());
     for (int i = 0; i < static_cast<int>(transform::modules::count); ++i)
@@ -6243,7 +6240,7 @@ void TransformAudioProcessorEditor::resized()
         if (midiLearnOverlay->isVisible()) midiLearnOverlay->refresh();
     }
 
-    if (isShowing() && ! presetBrowserOpen
+    if (zoomTrackingReady && isShowing() && ! presetBrowserOpen
         && getWidth() != observedEditorWidth)
     {
         const int scalePercent = juce::jlimit(
@@ -6254,6 +6251,7 @@ void TransformAudioProcessorEditor::resized()
             "ZOOM | " + juce::String(scalePercent) + "%",
             juce::dontSendNotification);
     }
+    observedEditorWidth = getWidth();
 }
 
 void TransformAudioProcessorEditor::ReductionMeter::setReduction(float db)
@@ -6328,13 +6326,14 @@ void TransformAudioProcessorEditor::timerCallback()
             updatePresetNavigationDisplay();
     }
 
-    const int currentWidth = getWidth();
+    // Host project restoration can occur while this editor is already open.
+    const int currentZoom = juce::roundToInt(100.0f * getWidth() / designWidth);
+    if (processor.getEditorZoomPercent() != currentZoom)
+        setZoomPercent(processor.getEditorZoomPercent());
     const double currentTheme = themeDial != nullptr
         ? themeDial->slider.getValue() : 50.0;
-    if (currentWidth != observedEditorWidth
-        || std::abs(currentTheme - observedThemeValue) > 0.0001)
+    if (std::abs(currentTheme - observedThemeValue) > 0.0001)
     {
-        observedEditorWidth = currentWidth;
         observedThemeValue = currentTheme;
         stableSettingsTicks = 0;
         settingsDirty = true;
@@ -6347,14 +6346,14 @@ void TransformAudioProcessorEditor::timerCallback()
     }
 }
 
-void TransformAudioProcessorEditor::saveInterfaceSettings() const
+void TransformAudioProcessorEditor::saveInterfaceSettings(bool setZoomDefault) const
 {
     const auto directory = TransformAudioProcessor::getSettingsDirectory();
     if (! directory.isDirectory() && directory.createDirectory().failed())
         return;
-    const int scalePercent = juce::jlimit(
-        75, 300, juce::roundToInt(100.0f * static_cast<float>(getWidth())
-                                  / static_cast<float>(designWidth)));
+    // Other GUI preference writes must never change the default zoom.
+    const int scalePercent = setZoomDefault ? processor.getEditorZoomPercent()
+                                           : loadInterfaceSettings().scalePercent;
     const double themePercent = themeDial != nullptr
         ? juce::jlimit(0.0, 100.0, themeDial->slider.getValue()) : 50.0;
     juce::String text;

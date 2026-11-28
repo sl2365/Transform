@@ -93,44 +93,38 @@ private:
     class SteppedComboBox final : public juce::ComboBox
     {
     public:
-        void rememberWheelIndex(int index) noexcept { commandIndex = index; }
-        void mouseWheelMove(const juce::MouseEvent& event,
+        void mouseWheelMove(const juce::MouseEvent&,
                             const juce::MouseWheelDetails& wheel) override
         {
-            // The internal label forwards wheel events to its owner, and also
-            // notifies its mouse listeners. Only consume the owner event.
-            if (event.eventComponent != this || isPopupActive()
-                || !isEnabled() || getNumItems() <= 0 || wheel.isInertial
-                || std::abs(wheel.deltaY) < 0.0001f)
+            if (! isEnabled() || isPopupActive() || getNumItems() <= 0
+                || wheel.isInertial || std::abs(wheel.deltaY) < 0.0001f)
                 return;
             const int direction = wheel.deltaY > 0.0f ? -1 : 1;
-            if (wheel.isSmooth)
-            {
-                const auto now = juce::Time::getMillisecondCounter();
-                if (direction != lastDirection || now - lastTime > 250u)
-                    remainder = 0.0f;
-                lastDirection = direction;
-                lastTime = now;
-                remainder += std::abs(wheel.deltaY);
-                if (remainder < 0.1f) return;
-                remainder = 0.0f;
-            }
-            else
-                remainder = 0.0f;
-            const int selected = getSelectedItemIndex();
-            const int current = selected >= 0 ? selected : commandIndex;
-            const int next = current < 0 ? (direction > 0 ? 0 : getNumItems() - 1)
+            const auto now = juce::Time::getMillisecondCounter();
+            if (direction == lastWheelDirection
+                && now - lastWheelTimeMs < 100u)
+                return;
+            lastWheelDirection = direction;
+            lastWheelTimeMs = now;
+            const int current = getSelectedItemIndex();
+            const int next = current < 0
+                ? (direction > 0 ? 0 : getNumItems() - 1)
                 : juce::jlimit(0, getNumItems() - 1, current + direction);
             if (next != current)
-            {
-                commandIndex = next;
                 setSelectedItemIndex(next, juce::sendNotificationSync);
-            }
         }
     private:
-        int commandIndex = -1, lastDirection = 0;
-        juce::uint32 lastTime = 0;
-        float remainder = 0.0f;
+        juce::uint32 lastWheelTimeMs = 0;
+        int lastWheelDirection = 0;
+    };
+
+    // A real button with no painted chrome: only the existing logo is visible.
+    class ZoomHitButton final : public juce::Button
+    {
+    public:
+        ZoomHitButton() : juce::Button("Zoom") {}
+    private:
+        void paintButton(juce::Graphics&, bool, bool) override {}
     };
 
     class PresetDisplayLabel final : public juce::Label
@@ -314,7 +308,8 @@ private:
     std::unique_ptr<juce::AudioProcessorValueTreeState::ComboBoxAttachment> tuneScaleAttachment;
     std::unique_ptr<juce::Drawable> logoDrawable;
     juce::Label versionLabel;
-    juce::Label logoHitArea;
+    ZoomHitButton logoHitArea;
+    bool zoomMenuOpen = false;
     std::array<juce::ToggleButton, transform::modules::count> moduleTabs;
     std::array<juce::ToggleButton, transform::modules::count> modulePower;
     std::array<std::unique_ptr<juce::AudioProcessorValueTreeState::ButtonAttachment>,
@@ -421,9 +416,10 @@ private:
     void returnKeyPressed(int) override;
     void selectedRowsChanged(int) override;
     void timerCallback() override;
-    void saveInterfaceSettings() const;
-
+    void saveInterfaceSettings(bool setZoomDefault = false) const;
+    bool zoomTrackingReady = false;
     int observedEditorWidth = designWidth;
+
     double observedThemeValue = 100.0;
     int stableSettingsTicks = 0;
     bool settingsDirty = false;

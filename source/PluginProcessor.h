@@ -45,6 +45,18 @@ public:
 
     // MIDI learn is independent of preset state. All mapping edits and host
     // notifications run on the message thread; audio only captures CC bytes.
+    bool isMidiLearnTarget(const juce::String& id) const;
+    int getEditorZoomPercent() const noexcept { return editorZoomPercent.load(); }
+    void setEditorZoomPercent(int percent) noexcept { editorZoomPercent.store(juce::jlimit(75, 300, percent)); }
+    bool isSequencerColourLocked() const;
+    bool toggleSequencerColourLock();
+    void refreshUserSequences();
+    const juce::Array<juce::File>& getUserSequenceFiles() const noexcept { return userSequenceFiles; }
+    std::uint32_t getSequenceSelectionRevision() noexcept;
+    int getSelectedWaveform() const noexcept { return selectedWaveform; }
+    juce::String getSelectedUserSequence() const { return selectedUserSequence; }
+    void selectWaveform(int index);
+    bool selectUserSequence(int index);
     void armMidiLearn(const juce::String& id);
     void cancelMidiLearn();
     void clearMidiLearn(const juce::String& id);
@@ -100,6 +112,20 @@ private:
     void loadMidiMappings();
     void saveMidiMappings() const;
     std::atomic<int> editorModule { 0 };
+    std::atomic<int> editorZoomPercent { 100 };
+    std::array<std::atomic<float>, 3> defaultSequencerColour {};
+    std::atomic<bool> hasDefaultSequencerColour { false };
+    mutable std::atomic<bool> colourLockSuppressed { false };
+    void loadDefaultInterfacePreferences();
+    void applyDefaultSequencerColour();
+    void applyMidiLearnValue(const juce::String&, int value);
+    // Message-thread-only action selections; the actual steps live in APVTS.
+    juce::Array<juce::File> userSequenceFiles;
+    int selectedWaveform = -1;
+    juce::String selectedUserSequence;
+    juce::uint32 userSequenceRefreshTime = 0;
+    std::uint32_t sequenceSelectionRevision = 0;
+    std::atomic<bool> resetSequenceSelection { false };
     static constexpr int stateSchemaVersion = 5;
     static constexpr int channelCount = 2;
     using LinearSmoother = juce::SmoothedValue<
